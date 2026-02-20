@@ -4,20 +4,22 @@
 
 'use client';
 
+import React from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useEscrowStore } from '@/lib/store/escrow';
 import { useXverseWallet } from '@/lib/hooks/useXverseWallet';
 import { mempoolClient } from '@/lib/bitcoin/mempool';
-import { Card, Button, Alert, Badge, Modal, Spinner } from '@/components/ui';
+import { Spinner } from '@/components/ui';
 import {
   formatSats,
-  getStatusDisplay,
   getMempoolLink,
-  getTimeRemaining,
+  getMempoolAddressLink,
 } from '@/lib/utils';
 import Link from 'next/link';
 import { createEscrowAddress } from '@/lib/bitcoin/address';
+import { FundEscrowForm } from '@/components/FundEscrowForm';
+import { PollingDetector } from '@/components/PollingDetector';
 
 export default function EscrowDetailPage() {
   const params = useParams();
@@ -32,9 +34,66 @@ export default function EscrowDetailPage() {
   const [_loading, _setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blockHeight, setBlockHeight] = useState(0);
-  const [showUnlockModal, setShowUnlockModal] = useState(false);
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [_redeemTxid, setRedeemTxid] = useState<string | undefined>(escrow?.redeemTxid);
+  const [copied, setCopied] = useState(false);
+
+  // Derive the P2SH escrow address from stored script hex — once, at component level
+  const escrowAddress = useMemo(() => {
+    if (!escrow?.scriptHex) return null;
+    try {
+      return createEscrowAddress(Buffer.from(escrow.scriptHex, 'hex'));
+    } catch {
+      return null;
+    }
+  }, [escrow?.scriptHex]);
+
+  const copyAddress = useCallback(() => {
+    if (!escrowAddress) return;
+    navigator.clipboard.writeText(escrowAddress).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [escrowAddress]);
+
+  const refreshEscrowStatus = useCallback(async () => {
+    // Always read the latest escrow from store to avoid stale closure
+    const currentEscrow = getEscrow(escrowId);
+    if (!currentEscrow) return;
+
+    try {
+      // Fetch current block height
+      const height = await mempoolClient.getBlockHeight();
+      setBlockHeight(height);
+
+      // Check if funding tx is confirmed
+      if (currentEscrow.fundingTxid && currentEscrow.status === 'pending') {
+        const confirmed = await mempoolClient.isTransactionConfirmed(currentEscrow.fundingTxid);
+        if (confirmed) {
+          updateEscrow(escrowId, { status: 'active' });
+          setEscrow((prev) => (prev ? { ...prev, status: 'active' } : null));
+        }
+      }
+
+      // Check if timelock is expired → ready to unlock
+      if (currentEscrow.status === 'active') {
+        let readyToUnlock = false;
+
+        if (currentEscrow.unlockType === 'timelock' && currentEscrow.unlockTime) {
+          readyToUnlock = height >= currentEscrow.unlockTime;
+        } else if (currentEscrow.unlockType === 'dual-approval') {
+          readyToUnlock = !!(currentEscrow.buyerSigned && currentEscrow.sellerSigned);
+        }
+
+        if (readyToUnlock) {
+          updateEscrow(escrowId, { status: 'ready-to-unlock' });
+          setEscrow((prev) => (prev ? { ...prev, status: 'ready-to-unlock' } : null));
+        }
+      }
+    } catch {
+      // Silently fail — status will be refreshed next tick
+    }
+  }, [escrowId, getEscrow, updateEscrow]);
 
   useEffect(() => {
     if (!escrow) {
@@ -46,42 +105,7 @@ export default function EscrowDetailPage() {
 
     const interval = setInterval(refreshEscrowStatus, 30000);
     return () => clearInterval(interval);
-  }, [escrowId]);
-
-  const refreshEscrowStatus = async () => {
-    try {
-      // Fetch current block height
-      const height = await mempoolClient.getBlockHeight();
-      setBlockHeight(height);
-
-      // Check if transaction is confirmed
-      if (escrow?.fundingTxid && escrow.status === 'pending') {
-        const confirmed = await mempoolClient.isTransactionConfirmed(escrow.fundingTxid);
-        if (confirmed) {
-          updateEscrow(escrowId, { status: 'active' });
-          setEscrow({ ...escrow, status: 'active' });
-        }
-      }
-
-      // Check if ready to unlock
-      if (escrow?.status === 'active') {
-        let readyToUnlock = false;
-
-        if (escrow.unlockType === 'timelock' && escrow.unlockTime) {
-          readyToUnlock = height >= escrow.unlockTime;
-        } else if (escrow.unlockType === 'dual-approval') {
-          readyToUnlock = !!(escrow.buyerSigned && escrow.sellerSigned);
-        }
-
-        if (readyToUnlock) {
-          updateEscrow(escrowId, { status: 'ready-to-unlock' });
-          setEscrow((prev) => (prev ? { ...prev, status: 'ready-to-unlock' } : null));
-        }
-      }
-    } catch {
-      // Silently fail
-    }
-  };
+  }, [escrowId, refreshEscrowStatus]);
 
   const handleUnlock = async () => {
     if (!escrow || !wallet.isConnected) return;
@@ -95,10 +119,10 @@ if (!escrow.scriptHex) {
 
       // ── 1. Re-derive escrow P2SH address from the stored script hex ──────────
       const redeemScriptBuf = Buffer.from(escrow.scriptHex, 'hex');
-      const escrowAddress = createEscrowAddress(redeemScriptBuf);
+      const resolvedEscrowAddress = escrowAddress ?? createEscrowAddress(redeemScriptBuf);
 
       // ── 2. Fetch UTXOs at the escrow address ──────────────────────────────────
-      const utxos = await mempoolClient.getUTXOs(escrowAddress);
+      const utxos = await mempoolClient.getUTXOs(resolvedEscrowAddress);
       if (!utxos.length) {
         throw new Error('No unspent outputs at escrow address — may already be spent or not yet funded');
       }
@@ -153,7 +177,8 @@ if (!escrow.scriptHex) {
       const partialSig = input.partialSig?.[0];
       if (!partialSig) throw new Error('Xverse returned no signature');
 
-      // Build P2SH scriptSig: <sig> <redeemScript>
+      // Build P2SH scriptSig for CLTV: <sig> <redeemScript>
+      // (pubkey is embedded in the redeemScript itself — do NOT push it separately)
       const scriptSig = btc.script.compile([partialSig.signature, redeemScriptBuf]);
 
       signedPsbt.finalizeInput(0, () => ({
@@ -184,7 +209,6 @@ if (!escrow.scriptHex) {
         prev ? { ...prev, status: 'released', unlockedAt: now, redeemTxid: txid } : null,
       );
       setRedeemTxid(txid);
-      setShowUnlockModal(false);
     } catch (err: any) {
       setError(err?.message || 'Failed to unlock escrow');
     } finally {
@@ -194,258 +218,286 @@ if (!escrow.scriptHex) {
 
   if (!escrow) {
     return (
-      <div className="flex justify-center items-center h-screen">
+      <div className="flex justify-center items-center py-24">
         <Spinner className="w-12 h-12" />
       </div>
     );
   }
 
-  const statusDisplay = getStatusDisplay(escrow.status);
+  const isTimelock = escrow.unlockType === 'timelock';
+  const blocksLeft = isTimelock && escrow.unlockTime && blockHeight
+    ? escrow.unlockTime - blockHeight
+    : null;
+
+  /* ── Status banner config ── */
+  const bannerCfg: Record<string, { bg: string; label: string; icon: string }> = {
+    pending:          { bg: 'bg-yellow-50 border-yellow-300 text-yellow-900', label: 'Pending Funding', icon: '🟡' },
+    active:           { bg: 'bg-blue-50 border-blue-300 text-blue-900', label: 'Active — Waiting for Conditions', icon: '🔵' },
+    'ready-to-unlock':{ bg: 'bg-green-50 border-green-400 text-green-900', label: 'Ready to Unlock!', icon: '🟢' },
+    released:         { bg: 'bg-gray-50 border-gray-300 text-gray-700', label: 'Released', icon: '✅' },
+    expired:          { bg: 'bg-red-50 border-red-300 text-red-900', label: 'Expired', icon: '🔴' },
+  };
+  const banner = bannerCfg[escrow.status] ?? bannerCfg.pending;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="max-w-2xl mx-auto space-y-6">
+
+      {/* ── Header ── */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-4xl font-bold mb-2">📋 Escrow Details</h1>
-          <p className="text-gray-600 font-mono">{escrow.id}</p>
+          <Link href="/" className="text-sm text-gray-400 hover:text-gray-600 flex items-center gap-1 mb-2">
+            ← Dashboard
+          </Link>
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            {isTimelock ? '⏳' : '👥'}
+            {isTimelock ? 'Timelock Escrow' : 'Dual-Approval Escrow'}
+          </h1>
+          <p className="font-mono text-xs text-gray-400 mt-1 break-all">{escrow.id}</p>
         </div>
-        <Link href="/">
-          <Button variant="secondary">← Back</Button>
-        </Link>
+        <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize shrink-0 ml-4 mt-1 border ${banner.bg}`}>
+          {banner.icon} {banner.label}
+        </span>
       </div>
 
-      {/* Status Alert */}
-      <Alert type={escrow.status === 'released' ? 'success' : 'info'}>
-        <div className="flex items-center justify-between">
-          <span className="flex items-center gap-2">
-            <span>{statusDisplay.icon}</span>
-            <strong>{statusDisplay.label}</strong>
-          </span>
-          {escrow.status === 'ready-to-unlock' && (
-            <Button variant="success" size="sm" onClick={() => setShowUnlockModal(true)}>
-              🔓 Unlock Now
-            </Button>
-          )}
+      {/* ── Error ── */}
+      {error && (
+        <div className="rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">
+          ⚠️ {error}
         </div>
-      </Alert>
-
-      {/* Error */}
-      {error && <Alert type="error">{error}</Alert>}
-
-      {/* Main Details */}
-      <div className="grid md:grid-cols-2 gap-6">
-        <Card title="💰 Amount & Recipient">
-          <div className="space-y-4">
-            <div>
-              <p className="text-gray-600 text-sm">Amount</p>
-              <p className="text-3xl font-bold text-blue-600">{formatSats(escrow.amount)}</p>
-              <p className="text-xs text-gray-500">{escrow.amount.toLocaleString()} sats</p>
-            </div>
-
-            <hr />
-
-            <div>
-              <p className="text-gray-600 text-sm">Receiver Address</p>
-              <p className="font-mono text-sm break-all">{escrow.receiverAddress}</p>
-            </div>
-
-            <div>
-              <p className="text-gray-600 text-sm">Locker Address</p>
-              <p className="font-mono text-sm break-all">{escrow.locker}</p>
-            </div>
-          </div>
-        </Card>
-
-        <Card title="🔐 Unlock Conditions">
-          <div className="space-y-4">
-            <div>
-              <p className="text-gray-600 text-sm mb-2">Unlock Type</p>
-              <Badge color={escrow.unlockType === 'timelock' ? 'blue' : 'purple'}>
-                {escrow.unlockType === 'timelock' ? '⏳ Timelock' : '👥 Dual Approval'}
-              </Badge>
-            </div>
-
-            {escrow.unlockType === 'timelock' && escrow.unlockTime && (
-              <>
-                <hr />
-                <div>
-                  <p className="text-gray-600 text-sm">Unlock Block Height</p>
-                  <p className="text-xl font-bold">{escrow.unlockTime.toLocaleString()}</p>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Current: {blockHeight.toLocaleString()}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-2">{getTimeRemaining(blockHeight, escrow.unlockTime)}</p>
-                </div>
-              </>
-            )}
-
-            {escrow.unlockType === 'dual-approval' && (
-              <>
-                <hr />
-                <div>
-                  <p className="text-gray-600 text-sm mb-3">Approvals</p>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span>Buyer:</span>
-                      <Badge color={escrow.buyerSigned ? 'green' : 'red'}>
-                        {escrow.buyerSigned ? '✅ Signed' : '⏳ Pending'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span>Seller:</span>
-                      <Badge color={escrow.sellerSigned ? 'green' : 'red'}>
-                        {escrow.sellerSigned ? '✅ Signed' : '⏳ Pending'}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-
-                <hr />
-
-                <div>
-                  <p className="text-gray-600 text-sm">Buyer Address</p>
-                  <p className="font-mono text-xs break-all">{escrow.buyerAddress}</p>
-                </div>
-
-                <div>
-                  <p className="text-gray-600 text-sm">Seller Address</p>
-                  <p className="font-mono text-xs break-all">{escrow.sellerAddress}</p>
-                </div>
-              </>
-            )}
-          </div>
-        </Card>
-      </div>
-
-      {/* Transactions */}
-      <Card title="🔗 Transactions">
-        <div className="space-y-4">
-          {escrow.fundingTxid && (
-            <div>
-              <p className="text-gray-600 text-sm mb-2">Funding Transaction</p>
-              <a
-                href={getMempoolLink(escrow.fundingTxid)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono text-blue-600 hover:underline break-all"
-              >
-                {escrow.fundingTxid}
-              </a>
-              <p className="text-xs text-gray-500 mt-1">
-                {escrow.status === 'pending' ? '⏳ Awaiting confirmation' : '✅ Confirmed'}
-              </p>
-            </div>
-          )}
-
-          {!escrow.fundingTxid && (
-            <Alert type="warning">
-              No funding transaction yet. Send BTC to the escrow P2SH address to fund this escrow.
-            </Alert>
-          )}
-
-          {escrow.redeemTxid && (
-            <div className="pt-4 border-t">
-              <p className="text-gray-600 text-sm mb-2">Redeem Transaction</p>
-              <a
-                href={getMempoolLink(escrow.redeemTxid)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="font-mono text-blue-600 hover:underline break-all"
-              >
-                {escrow.redeemTxid}
-              </a>
-            </div>
-          )}
-        </div>
-      </Card>
-
-      {/* Script */}
-      {escrow.scriptHex && (
-        <Card title="📝 Bitcoin Script">
-          <div>
-            <p className="text-gray-600 text-sm mb-2">Hex-encoded Script</p>
-            <div className="bg-gray-100 p-3 rounded font-mono text-xs break-all overflow-x-auto">
-              {escrow.scriptHex}
-            </div>
-            <p className="text-xs text-gray-500 mt-2">
-              Keep this script hex for your records. It defines the unlock conditions.
-            </p>
-          </div>
-        </Card>
       )}
 
-      {/* Timeline */}
-      <Card title="📅 Timeline">
-        <div className="space-y-3">
-          <div className="flex gap-3">
-            <div className="flex-shrink-0">
-              <div className="flex items-center justify-center h-8 w-8 rounded-full bg-blue-600 text-white">
-                ✓
+      {/* ════════════════════════════════════════════════════
+          STATUS-DRIVEN ACTION PANELS
+      ════════════════════════════════════════════════════ */}
+
+      {/* PENDING: no funding yet — show address + fund form */}
+      {escrow.status === 'pending' && !escrow.fundingTxid && escrowAddress && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-yellow-200 bg-yellow-50 p-5 space-y-3">
+            <h2 className="font-bold text-yellow-900">Step 2 — Fund the Escrow</h2>
+            <p className="text-yellow-800 text-sm">
+              Send exactly <strong>{formatSats(escrow.amount)}</strong> to the P2SH address below to activate this escrow.
+            </p>
+            <div className="rounded-lg bg-white border border-yellow-300 p-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Escrow Address</p>
+              <p className="font-mono text-sm break-all text-gray-800">{escrowAddress}</p>
+              <div className="flex gap-3">
+                <button
+                  onClick={copyAddress}
+                  className="text-xs font-semibold text-bitcoin-500 hover:text-bitcoin-600 underline"
+                >
+                  {copied ? '✓ Copied!' : 'Copy address'}
+                </button>
+                <a
+                  href={getMempoolAddressLink(escrowAddress)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs font-semibold text-blue-500 hover:underline"
+                >
+                  View on Mempool →
+                </a>
               </div>
-            </div>
-            <div>
-              <p className="font-semibold text-gray-900">Created</p>
-              <p className="text-sm text-gray-600">
-                {new Date(escrow.createdAt * 1000).toLocaleString()}
-              </p>
             </div>
           </div>
+          <FundEscrowForm
+            escrowId={escrow.id}
+            escrowAddress={escrowAddress}
+            expectedAmount={escrow.amount}
+            onFunded={(txid) => {
+              updateEscrow(escrowId, { fundingTxid: txid });
+              setEscrow((prev) => (prev ? { ...prev, fundingTxid: txid } : null));
+            }}
+          />
+        </div>
+      )}
 
-          {escrow.unlockedAt && (
-            <div className="flex gap-3">
-              <div className="flex-shrink-0">
-                <div className="flex items-center justify-center h-8 w-8 rounded-full bg-green-600 text-white">
-                  ✓
+      {/* PENDING: funded but awaiting confirmation — show polling */}
+      {escrow.status === 'pending' && escrow.fundingTxid && escrowAddress && (
+        <div className="space-y-4">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 space-y-2">
+            <h2 className="font-bold text-blue-900">Waiting for On-chain Confirmation</h2>
+            <p className="text-blue-800 text-sm">Your transaction has been broadcast. The escrow will activate once it gets confirmed.</p>
+            <a
+              href={getMempoolLink(escrow.fundingTxid)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-blue-600 hover:underline break-all"
+            >
+              View transaction on Mempool →
+            </a>
+          </div>
+          <PollingDetector
+            escrowAddress={escrowAddress}
+            expectedAmount={escrow.amount}
+            enabled
+            showDetails
+            onFunded={() => {
+              updateEscrow(escrowId, { status: 'active' });
+              setEscrow((prev) => (prev ? { ...prev, status: 'active' } : null));
+            }}
+          />
+        </div>
+      )}
+
+      {/* ACTIVE: show conditions + block progress for timelock */}
+      {escrow.status === 'active' && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 space-y-3">
+          <h2 className="font-bold text-blue-900">Active — Waiting for Unlock Conditions</h2>
+          {isTimelock && escrow.unlockTime ? (
+            <>
+              <p className="text-blue-800 text-sm">
+                Funds lock until block <strong>{escrow.unlockTime.toLocaleString()}</strong>.
+              </p>
+              <div className="flex items-center gap-6 text-sm">
+                <div>
+                  <p className="text-gray-500">Current block</p>
+                  <p className="font-bold text-lg text-gray-800">{blockHeight.toLocaleString()}</p>
                 </div>
+                <div>
+                  <p className="text-gray-500">Unlock block</p>
+                  <p className="font-bold text-lg text-gray-800">{escrow.unlockTime.toLocaleString()}</p>
+                </div>
+                {blocksLeft !== null && (
+                  <div>
+                    <p className="text-gray-500">Blocks remaining</p>
+                    <p className={`font-bold text-lg ${blocksLeft <= 0 ? 'text-green-600' : 'text-gray-800'}`}>
+                      {blocksLeft <= 0 ? '0 (unlockable)' : blocksLeft.toLocaleString()}
+                    </p>
+                  </div>
+                )}
               </div>
-              <div>
-                <p className="font-semibold text-gray-900">Released</p>
-                <p className="text-sm text-gray-600">
-                  {new Date(escrow.unlockedAt * 1000).toLocaleString()}
-                </p>
+            </>
+          ) : (
+            <div className="space-y-2 text-sm text-blue-800">
+              <p>This is a dual-approval escrow. Both parties must sign to release funds.</p>
+              <div className="flex gap-6">
+                <span>{escrow.buyerSigned ? '✅' : '⏳'} Buyer signature</span>
+                <span>{escrow.sellerSigned ? '✅' : '⏳'} Seller signature</span>
               </div>
             </div>
           )}
         </div>
-      </Card>
+      )}
 
-      {/* Unlock Modal */}
-      <Modal
-        isOpen={showUnlockModal}
-        onClose={() => setShowUnlockModal(false)}
-        title="🔓 Unlock Escrow"
-      >
-        <div className="space-y-4">
-          <Alert type="info">
-            This will send the funds to the recipient address. Make sure all conditions are met.
-          </Alert>
-
-          <div className="bg-gray-50 p-3 rounded">
-            <p className="text-sm text-gray-600 mb-1">Amount to send:</p>
-            <p className="font-bold text-lg">{formatSats(escrow.amount)}</p>
-          </div>
-
-          <div className="flex gap-3">
-            <Button
-              variant="success"
-              className="flex-1"
-              onClick={handleUnlock}
-              isLoading={unlockLoading}
-            >
-              {unlockLoading ? 'Processing...' : 'Confirm Unlock'}
-            </Button>
-            <Button
-              variant="secondary"
-              className="flex-1"
-              onClick={() => setShowUnlockModal(false)}
-              disabled={unlockLoading}
-            >
-              Cancel
-            </Button>
-          </div>
+      {/* READY TO UNLOCK — prominent CTA */}
+      {escrow.status === 'ready-to-unlock' && (
+        <div className="rounded-xl border-2 border-green-400 bg-green-50 p-6 space-y-4 text-center">
+          <div className="text-5xl">🔓</div>
+          <h2 className="font-bold text-2xl text-green-900">Ready to Unlock!</h2>
+          <p className="text-green-800 text-sm">
+            {isTimelock
+              ? 'The timelock has expired. You can now unlock and redeem the funds.'
+              : 'Both parties have signed. You can now release the funds.'}
+          </p>
+          <button
+            onClick={handleUnlock}
+            disabled={unlockLoading || !wallet.isConnected}
+            className="inline-flex items-center gap-2 px-8 py-3 rounded-xl bg-green-600 hover:bg-green-700 text-white font-bold text-lg shadow-md disabled:opacity-60 transition-colors"
+          >
+            {unlockLoading ? (
+              <>
+                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" className="opacity-25" />
+                  <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="4" />
+                </svg>
+                Processing…
+              </>
+            ) : (
+              '🔓 Unlock & Redeem Funds'
+            )}
+          </button>
+          {!wallet.isConnected && (
+            <p className="text-xs text-red-600">Wallet not connected — reconnect to proceed</p>
+          )}
         </div>
-      </Modal>
+      )}
+
+      {/* RELEASED */}
+      {escrow.status === 'released' && (
+        <div className="rounded-xl border border-gray-200 bg-gray-50 p-5 space-y-3 text-center">
+          <div className="text-4xl">✅</div>
+          <h2 className="font-bold text-xl text-gray-800">Funds Released</h2>
+          {escrow.redeemTxid && (
+            <a
+              href={getMempoolLink(escrow.redeemTxid)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-semibold text-blue-600 hover:underline break-all"
+            >
+              View redeem transaction →
+            </a>
+          )}
+          <p className="text-sm text-gray-500">
+            Released at {escrow.unlockedAt
+              ? new Date(escrow.unlockedAt * 1000).toLocaleString()
+              : '—'}
+          </p>
+        </div>
+      )}
+
+      {/* ════════════════════════════════════════════════════
+          DETAILS
+      ════════════════════════════════════════════════════ */}
+      <div className="rounded-xl border border-gray-200 bg-white divide-y divide-gray-100">
+        <Row label="Amount" value={<span className="font-bold text-bitcoin-500">{formatSats(escrow.amount)}</span>} />
+        <Row label="Receiver" value={<Mono>{escrow.receiverAddress}</Mono>} />
+        <Row label="Locker" value={<Mono>{escrow.locker}</Mono>} />
+        <Row label="Type" value={isTimelock ? '⏳ Timelock (OP_CLTV)' : '👥 Dual Approval (2-of-2)'} />
+        {isTimelock && escrow.unlockTime && (
+          <Row label="Unlock Block" value={escrow.unlockTime.toLocaleString()} />
+        )}
+        <Row label="Created" value={new Date(escrow.createdAt * 1000).toLocaleString()} />
+        {escrow.fundingTxid && (
+          <Row
+            label="Funding Tx"
+            value={
+              <a href={getMempoolLink(escrow.fundingTxid)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all text-xs font-mono">
+                {escrow.fundingTxid.slice(0, 16)}…{escrow.fundingTxid.slice(-8)}
+              </a>
+            }
+          />
+        )}
+        {escrow.redeemTxid && (
+          <Row
+            label="Redeem Tx"
+            value={
+              <a href={getMempoolLink(escrow.redeemTxid)} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline break-all text-xs font-mono">
+                {escrow.redeemTxid.slice(0, 16)}…{escrow.redeemTxid.slice(-8)}
+              </a>
+            }
+          />
+        )}
+      </div>
+
+      {/* Script hex (collapsed) */}
+      {escrow.scriptHex && (
+        <details className="rounded-xl border border-gray-200 bg-white">
+          <summary className="px-4 py-3 font-semibold text-gray-700 cursor-pointer select-none text-sm">
+            📝 Bitcoin Script Hex
+          </summary>
+          <div className="px-4 pb-4">
+            <p className="font-mono text-xs break-all bg-gray-50 border border-gray-200 rounded p-3 text-gray-600">
+              {escrow.scriptHex}
+            </p>
+            <p className="text-xs text-gray-400 mt-2">Keep this for your records — it defines the unlock conditions.</p>
+          </div>
+        </details>
+      )}
     </div>
   );
 }
+
+/* ── Small helpers ── */
+function Row({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-4 px-4 py-3">
+      <span className="text-sm text-gray-500 shrink-0 w-28">{label}</span>
+      <span className="text-sm text-gray-900 text-right break-all">{value}</span>
+    </div>
+  );
+}
+
+function Mono({ children }: { children: React.ReactNode }) {
+  return <span className="font-mono text-xs">{children}</span>;
+}
+

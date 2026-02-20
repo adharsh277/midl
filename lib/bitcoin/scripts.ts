@@ -128,42 +128,29 @@ export function buildHybridEscrowScript(
 }
 
 /**
- * Convert number to little-endian buffer (for Bitcoin script)
- * Handles small numbers (0-255) efficiently
+ * Encode a positive integer as a Bitcoin CScript number (little-endian).
+ * script.compile() will automatically prepend the correct OP_PUSHBYTESn opcode.
+ *
+ * Rules:
+ *  - 0         → empty buffer  (OP_0 / OP_FALSE)
+ *  - 1–127     → single byte, no sign padding needed (high bit clear)
+ *  - 128–32767 → two bytes, add 0x00 padding if high bit of last byte is set
+ *  - ...and so on for larger values (block heights like 850000 need 3 bytes)
  */
 function numberToBuffer(num: number): Buffer {
-  if (num === 0) {
-    return Buffer.from([btc.opcodes.OP_0]);
-  }
+  if (num < 0) throw new Error('Cannot encode negative numbers in script');
+  if (num === 0) return Buffer.alloc(0); // OP_0 equivalent
 
-  if (num < 0) {
-    throw new Error('Cannot encode negative numbers');
-  }
-
-  if (num <= 75) {
-    // Direct push
-    return Buffer.from([num]);
-  }
-
-  if (num <= 255) {
-    // OP_PUSHDATA1
-    return Buffer.from([0x4c, num]);
-  }
-
-  // Multi-byte little-endian
   const bytes: number[] = [];
   let n = num;
-
   while (n > 0) {
     bytes.push(n & 0xff);
     n = n >>> 8;
   }
-
-  // Add sign byte if high bit set
+  // If the high bit of the last byte is set, append 0x00 to preserve sign
   if (bytes[bytes.length - 1] & 0x80) {
     bytes.push(0x00);
   }
-
   return Buffer.from(bytes);
 }
 

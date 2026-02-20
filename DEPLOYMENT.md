@@ -1,44 +1,43 @@
-/**
- * Production Deployment Guide
- * 
- * This guide covers deploying Bitcoin Smart Escrow to production
- */
+# Bitcoin Smart Escrow - Production Deployment Guide
 
-# Production Deployment Guide
-
-## Pre-Deployment Checklist
+## ✅ Pre-Deployment Checklist
 
 - [ ] All TypeScript types verified (`npm run type-check`)
 - [ ] Linting passes (`npm run lint`)
-- [ ] All tests pass
+- [ ] Local testnet testing complete (see TESTING_GUIDE.md)
+- [ ] All escrow types tested (timelock + multisig)
+- [ ] Wallet integration verified (Xverse)
+- [ ] API routes tested
+- [ ] Error handling tested
 - [ ] Environment variables configured
 - [ ] Security audit completed
-- [ ] Error handling tested
-- [ ] Wallet integration tested
-- [ ] Transaction signing tested
+- [ ] HTTPS/SSL configured
+- [ ] Rate limiting configured
+- [ ] Monitoring/logging setup
 
 ## Environment Setup
 
-### Testnet (Current)
+### Testnet4 (Current - Recommended for Testing)
 
 ```env
 # .env.local
-NEXT_PUBLIC_BITCOIN_NETWORK=testnet
-NEXT_PUBLIC_MEMPOOL_API=https://mempool.space/testnet/api
-NEXT_PUBLIC_APP_TITLE=Bitcoin Smart Escrow
-NEXT_PUBLIC_API_BASE_URL=http://localhost:3000
+NEXT_PUBLIC_MEMPOOL_API=https://mempool.space/testnet4/api
+NODE_ENV=development
 ```
 
-### Mainnet (Production)
+### Mainnet (Production - Use Only After Full Testing)
 
 ```env
 # .env.production
-NEXT_PUBLIC_BITCOIN_NETWORK=mainnet
 NEXT_PUBLIC_MEMPOOL_API=https://mempool.space/api
-NEXT_PUBLIC_APP_TITLE=Bitcoin Smart Escrow
-NEXT_PUBLIC_API_BASE_URL=https://your-domain.com
 NODE_ENV=production
 ```
+
+**WARNING**: Only switch to mainnet after:
+1. ✅ Complete testnet testing
+2. ✅ Manual verification of all features
+3. ✅ Security audit complete
+4. ✅ Users briefed on real-value transactions
 
 ## Deployment Platforms
 
