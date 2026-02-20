@@ -5,7 +5,7 @@
 
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import {
   getAddress,
   sendBtcTransaction,
@@ -18,6 +18,7 @@ import {
   type SendBtcTransactionResponse,
 } from 'sats-connect';
 import { WalletInfo, XverseSignature } from '../../types';
+import { useWalletStore } from '../store/wallet';
 
 // Xverse Testnet4 — must match the network selected in Xverse settings
 const NETWORK = BitcoinNetworkType.Testnet4;
@@ -33,14 +34,7 @@ function isXverseAvailable(): boolean {
 }
 
 export function useXverseWallet() {
-  const [wallet, setWallet] = useState<WalletInfo>({
-    address: '',
-    publicKey: '',
-    balance: 0,
-    isConnected: false,
-  });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { wallet, loading, error, setWallet, updateWallet, setLoading, setError } = useWalletStore();
 
   // ─── Connect ────────────────────────────────────────────────────────────────
 
@@ -98,6 +92,7 @@ export function useXverseWallet() {
 
       setWallet(walletInfo);
       return walletInfo;
+      // ← Zustand update is immediately visible to ALL components
     } catch (err: any) {
       const msg = err?.message ?? 'Failed to connect wallet';
       setError(msg);
@@ -110,27 +105,27 @@ export function useXverseWallet() {
   // ─── Disconnect ─────────────────────────────────────────────────────────────
 
   const disconnect = useCallback(() => {
-    setWallet({ address: '', publicKey: '', balance: 0, isConnected: false });
-    setError(null);
+    useWalletStore.getState().disconnect();
   }, []);
 
   // ─── Refresh balance ────────────────────────────────────────────────────────
 
   const refreshBalance = useCallback(async () => {
-    if (!wallet.isConnected || !wallet.address) return wallet.balance;
+    const { wallet: w } = useWalletStore.getState();
+    if (!w.isConnected || !w.address) return w.balance;
     try {
-      const res = await fetch(`/api/wallet/balance?address=${wallet.address}`);
+      const res = await fetch(`/api/wallet/balance?address=${w.address}`);
       if (res.ok) {
         const data = await res.json();
         const newBalance = data.balances?.total ?? 0;
-        setWallet((prev) => ({ ...prev, balance: newBalance }));
+        updateWallet({ balance: newBalance });
         return newBalance;
       }
     } catch {
       // silent
     }
-    return wallet.balance;
-  }, [wallet.isConnected, wallet.address, wallet.balance]);
+    return w.balance;
+  }, [updateWallet]);
 
   // ─── Sign message ───────────────────────────────────────────────────────────
 
