@@ -7,8 +7,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { MempoolClient } from '@/lib/bitcoin/mempool';
+import { getMempoolApiBase } from '@/lib/bitcoin/network';
 
-const MEMPOOL_API = process.env.NEXT_PUBLIC_MEMPOOL_API || 'https://mempool.space/testnet4/api';
+const MEMPOOL_API = getMempoolApiBase();
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
