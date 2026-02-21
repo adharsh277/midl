@@ -8,8 +8,9 @@
 
 import * as btc from 'bitcoinjs-lib';
 import { UTXO } from '@/types';
+import { BITCOINJS_NETWORK } from '../network';
 
-const TESTNET = btc.networks.testnet;
+const NETWORK = BITCOINJS_NETWORK;
 
 export interface UnlockPSBTParams {
   utxo: UTXO;
@@ -29,7 +30,7 @@ export interface UnlockPSBTParams {
 export function buildUnlockPSBT(params: UnlockPSBTParams): btc.Psbt {
   const { utxo, rawTxHex, scriptHex, unlockOutputAddress, feeRate, unlockType, unlockTime } = params;
 
-  const psbt = new btc.Psbt({ network: TESTNET });
+  const psbt = new btc.Psbt({ network: NETWORK });
   const redeemScript = Buffer.from(scriptHex, 'hex');
 
   // For CLTV timelock: set PSBT-level locktime and use nSequence 0xfffffffe
@@ -145,7 +146,7 @@ export function validateUnlockPSBT(psbt: btc.Psbt, expectedOutputAddress: string
   // Check output address matches expected
   const output = psbt.txOutputs[0];
   try {
-    const address = btc.address.fromOutputScript(output.script, TESTNET);
+    const address = btc.address.fromOutputScript(output.script, NETWORK);
     return address === expectedOutputAddress;
   } catch {
     return false;
@@ -163,7 +164,7 @@ export function psbtToBase64(psbt: btc.Psbt): string {
  * Convert base64 back to PSBT
  */
 export function base64ToPsbt(base64: string): btc.Psbt {
-  return btc.Psbt.fromBase64(base64, { network: TESTNET });
+  return btc.Psbt.fromBase64(base64, { network: NETWORK });
 }
 
 /**
