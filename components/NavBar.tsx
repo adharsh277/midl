@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import { useXverseWallet } from '@/lib/hooks/useXverseWallet';
 import { formatAddress, formatSats } from '@/lib/utils';
 import { useEscrowStore } from '@/lib/store/escrow';
+import { getNetworkName } from '@/lib/bitcoin/network';
 
 export function NavBar() {
   const pathname = usePathname();
@@ -43,7 +44,7 @@ export function NavBar() {
           <span className="text-xl">🔐</span>
           <span className="font-bold text-gray-900 hidden sm:block">Bitcoin Escrow</span>
           <span className="text-xs text-orange-600 font-medium bg-orange-50 px-1.5 py-0.5 rounded">
-            TESTNET4
+            {getNetworkName().toUpperCase()}
           </span>
         </Link>
 
