@@ -162,7 +162,7 @@ export function CreateEscrowForm({ onSuccess }: CreateEscrowFormProps) {
                 rel="noopener noreferrer"
                 className="text-blue-600 hover:underline text-xs mt-1 inline-block"
               >
-                View address on mempool →
+                  View address on explorer →
               </a>
             </div>
 
@@ -210,7 +210,7 @@ export function CreateEscrowForm({ onSuccess }: CreateEscrowFormProps) {
 
         <Input
           label="Receiver Address"
-          placeholder="tb1q..."
+          placeholder="bcrt1..."
           value={formData.receiverAddress}
           onChange={(e) => setFormData({ ...formData, receiverAddress: e.target.value })}
           error={errors.receiverAddress}
@@ -254,14 +254,14 @@ export function CreateEscrowForm({ onSuccess }: CreateEscrowFormProps) {
           <>
             <Input
               label="Buyer Address"
-              placeholder="tb1q..."
+              placeholder="bcrt1..."
               value={formData.buyerAddress}
               onChange={(e) => setFormData({ ...formData, buyerAddress: e.target.value })}
               error={errors.buyerAddress}
             />
             <Input
               label="Seller Address"
-              placeholder="tb1q..."
+              placeholder="bcrt1..."
               value={formData.sellerAddress}
               onChange={(e) => setFormData({ ...formData, sellerAddress: e.target.value })}
               error={errors.sellerAddress}

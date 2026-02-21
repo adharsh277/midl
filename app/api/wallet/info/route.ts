@@ -7,8 +7,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { getMempoolApiBase } from '@/lib/bitcoin/network';
+import { isValidAddress } from '@/lib/bitcoin/address';
 
-const MEMPOOL_API = process.env.NEXT_PUBLIC_MEMPOOL_API || 'https://mempool.space/testnet4/api';
+const MEMPOOL_API = getMempoolApiBase();
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -23,9 +25,9 @@ export async function GET(request: NextRequest) {
     }
 
     // Validate address format
-    if (!/^(tb1|[mn2])[a-z0-9]{20,}$/i.test(address)) {
+    if (!isValidAddress(address)) {
       return NextResponse.json(
-        { error: 'Invalid Bitcoin testnet address' },
+        { error: 'Invalid Bitcoin address' },
         { status: 400 },
       );
     }

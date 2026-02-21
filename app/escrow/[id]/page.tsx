@@ -20,6 +20,7 @@ import Link from 'next/link';
 import { createEscrowAddress } from '@/lib/bitcoin/address';
 import { FundEscrowForm } from '@/components/FundEscrowForm';
 import { PollingDetector } from '@/components/PollingDetector';
+import { BITCOINJS_NETWORK, getMempoolApiBase } from '@/lib/bitcoin/network';
 
 export default function EscrowDetailPage() {
   const params = useParams();
@@ -37,6 +38,10 @@ export default function EscrowDetailPage() {
   const [unlockLoading, setUnlockLoading] = useState(false);
   const [_redeemTxid, setRedeemTxid] = useState<string | undefined>(escrow?.redeemTxid);
   const [copied, setCopied] = useState(false);
+  const [mineLoading, setMineLoading] = useState(false);
+  const [mineMessage, setMineMessage] = useState<string | null>(null);
+
+  const isMineEnabled = process.env.NEXT_PUBLIC_REGTEST_MINER_ENABLED === 'true';
 
   // Derive the P2SH escrow address from stored script hex — once, at component level
   const escrowAddress = useMemo(() => {
@@ -95,6 +100,27 @@ export default function EscrowDetailPage() {
     }
   }, [escrowId, getEscrow, updateEscrow]);
 
+  const handleMineBlock = useCallback(async () => {
+    try {
+      setMineLoading(true);
+      setMineMessage(null);
+
+      const response = await fetch('/api/regtest/mine', { method: 'POST' });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || 'Mining request failed');
+      }
+
+      setMineMessage('Block mined. Refreshing status...');
+      await refreshEscrowStatus();
+    } catch (err: any) {
+      setMineMessage(err?.message || 'Unable to mine a block');
+    } finally {
+      setMineLoading(false);
+    }
+  }, [refreshEscrowStatus]);
+
   useEffect(() => {
     if (!escrow) {
       router.push('/');
@@ -134,17 +160,17 @@ if (!escrow.scriptHex) {
           : undefined) ?? utxos[0];
 
       // ── 3. Fetch the full raw funding transaction for nonWitnessUtxo ──────────
-      const MEMPOOL = process.env.NEXT_PUBLIC_MEMPOOL_API || 'https://mempool.space/testnet4/api';
+      const MEMPOOL = getMempoolApiBase();
       const txHexRes = await fetch(`${MEMPOOL}/tx/${utxo.txid}/hex`);
       if (!txHexRes.ok) throw new Error('Failed to fetch funding transaction hex');
       const fundingTxHex = await txHexRes.text();
 
       // ── 4. Build PSBT ─────────────────────────────────────────────────────────
       const btc = await import('bitcoinjs-lib');
-      const TESTNET = btc.networks.testnet;
-      const FEE = 1000; // 1000 sats — safe for testnet
+      const NETWORK = BITCOINJS_NETWORK;
+      const FEE = 1000; // 1000 sats — safe for regtest
 
-      const psbt = new btc.Psbt({ network: TESTNET });
+      const psbt = new btc.Psbt({ network: NETWORK });
 
       const isTimelock = escrow.unlockType === 'timelock' && !!escrow.unlockTime;
       if (isTimelock && escrow.unlockTime) {
@@ -172,7 +198,7 @@ if (!escrow.scriptHex) {
       );
 
       // ── 6. Finalize: inject the P2SH scriptSig and extract raw tx ─────────────
-      const signedPsbt = btc.Psbt.fromBase64(signedBase64, { network: TESTNET });
+      const signedPsbt = btc.Psbt.fromBase64(signedBase64, { network: NETWORK });
       const input = signedPsbt.data.inputs[0];
       const partialSig = input.partialSig?.[0];
       if (!partialSig) throw new Error('Xverse returned no signature');
@@ -294,7 +320,7 @@ if (!escrow.scriptHex) {
                   rel="noopener noreferrer"
                   className="text-xs font-semibold text-blue-500 hover:underline"
                 >
-                  View on Mempool →
+                  View on explorer →
                 </a>
               </div>
             </div>
@@ -323,8 +349,30 @@ if (!escrow.scriptHex) {
               rel="noopener noreferrer"
               className="text-sm font-semibold text-blue-600 hover:underline break-all"
             >
-              View transaction on Mempool →
+              View transaction on explorer →
             </a>
+            <div className="pt-2">
+              <button
+                onClick={handleMineBlock}
+                disabled={!isMineEnabled || mineLoading}
+                className="text-xs font-semibold text-gray-700 bg-white border border-gray-300 rounded-lg px-3 py-1.5 disabled:opacity-50"
+                title={
+                  isMineEnabled
+                    ? 'Mine a block to confirm the transaction'
+                    : 'Mining endpoint not configured. Ask the MIDL team to mine a block.'
+                }
+              >
+                {mineLoading ? 'Mining block...' : 'Mine 1 block'}
+              </button>
+              {!isMineEnabled && (
+                <p className="text-xs text-gray-500 mt-1">
+                  Mining is disabled. Ask the MIDL team to mine a block for confirmation.
+                </p>
+              )}
+              {mineMessage && (
+                <p className="text-xs text-gray-600 mt-1">{mineMessage}</p>
+              )}
+            </div>
           </div>
           <PollingDetector
             escrowAddress={escrowAddress}
