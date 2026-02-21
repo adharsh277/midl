@@ -14,6 +14,7 @@ import * as detector from '@/lib/bitcoin/escrow/detector';
 import { base64ToPsbt, extractTransaction } from '@/lib/bitcoin/escrow/psbt';
 import { EscrowConfig, EscrowUnlockType, UTXO } from '@/types';
 import { mempoolClient } from '@/lib/bitcoin/mempool';
+import { getMempoolLink } from '@/lib/utils';
 
 export interface CreateEscrowParams {
   lockerAddress: string;
@@ -240,7 +241,7 @@ export function useEscrowOps() {
 
         return {
           txid: redeemTxid,
-          mempoolLink: `https://mempool.space/testnet4/tx/${redeemTxid}`,
+          mempoolLink: getMempoolLink(redeemTxid),
         };
       } catch (err: any) {
         const msg = err?.message || 'Failed to unlock escrow';
