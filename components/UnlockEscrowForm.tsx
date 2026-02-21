@@ -111,7 +111,7 @@ export function UnlockEscrowForm({ escrow, onUnlocked }: UnlockEscrowFormProps) 
             rel="noopener noreferrer"
             className="inline-block text-blue-600 hover:underline text-sm"
           >
-            View on mempool.space →
+            View on explorer →
           </a>
           <p className="text-xs text-green-700">
             Funds have been sent to {escrow.locker}
@@ -136,7 +136,7 @@ export function UnlockEscrowForm({ escrow, onUnlocked }: UnlockEscrowFormProps) 
               rel="noopener noreferrer"
               className="inline-block text-blue-600 hover:underline text-sm"
             >
-              View on mempool.space →
+              View on explorer →
             </a>
           )}
         </div>
