@@ -7,7 +7,7 @@ import { CreateEscrowForm } from '@/components/CreateEscrowForm';
 import { FundEscrowForm } from '@/components/FundEscrowForm';
 import { PollingDetector } from '@/components/PollingDetector';
 import { createEscrowAddress } from '@/lib/bitcoin/address';
-import { formatSats, getMempoolAddressLink } from '@/lib/utils';
+import { formatSats, getMempoolAddressLink, getMempoolLink } from '@/lib/utils';
 import { EscrowConfig } from '@/types';
 
 type Step = 'create' | 'fund' | 'confirm';
@@ -139,7 +139,7 @@ export default function CreatePage() {
                   rel="noopener noreferrer"
                   className="text-xs font-semibold text-blue-500 hover:underline"
                 >
-                  View on Mempool →
+                  View on explorer →
                 </a>
               </div>
             </div>
@@ -181,12 +181,12 @@ export default function CreatePage() {
             </p>
             {fundingTxid && (
               <a
-                href={`https://mempool.space/testnet4/tx/${fundingTxid}`}
+                href={getMempoolLink(fundingTxid)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-sm font-semibold text-blue-600 hover:underline break-all"
               >
-                View transaction on Mempool →
+                View transaction on explorer →
               </a>
             )}
           </div>
