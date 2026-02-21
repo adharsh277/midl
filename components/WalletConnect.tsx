@@ -195,7 +195,7 @@ export function WalletConnect() {
         </Button>
 
         <p className="text-xs text-gray-500 text-center mt-4">
-          Make sure you're on Bitcoin Testnet in your Xverse wallet
+          Make sure you're on Bitcoin Regtest in your Xverse wallet
         </p>
       </div>
     </Card>
