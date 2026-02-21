@@ -8,6 +8,7 @@ import { UTXO, EscrowConfig, EscrowUnlockType } from '@/types';
 import { buildTimelockScript, buildMultisigScript } from '../scripts';
 import { createEscrowAddress } from '../address';
 import { MempoolClient, mempoolClient } from '../mempool';
+import { getMempoolAddressLink } from '@/lib/utils';
 
 export interface CreateEscrowParams {
   lockerAddress: string;
@@ -59,7 +60,7 @@ export async function createEscrow(params: CreateEscrowParams): Promise<EscrowCr
   const escrowAddress = createEscrowAddress(script);
 
   const id = `esc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  const mempoolLink = `https://mempool.space/testnet4/address/${escrowAddress}`;
+  const mempoolLink = getMempoolAddressLink(escrowAddress);
 
   return {
     id,
