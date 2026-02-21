@@ -5,13 +5,14 @@
 
 import axios, { AxiosInstance } from 'axios';
 import { UTXO, MempoolTransaction, MempoolBlock } from '../../types';
+import { getMempoolApiBase } from './network';
 
-const TESTNET_API = process.env.NEXT_PUBLIC_MEMPOOL_API || 'https://mempool.space/testnet4/api';
+const MEMPOOL_API = getMempoolApiBase();
 
 export class MempoolClient {
   private api: AxiosInstance;
 
-  constructor(baseURL: string = TESTNET_API) {
+  constructor(baseURL: string = MEMPOOL_API) {
     this.api = axios.create({
       baseURL,
       timeout: 10000,
