@@ -94,7 +94,7 @@ export default function Home() {
             ['⏳', 'Timelock', 'Funds unlock at a block height via OP_CLTV'],
             ['👥', 'Dual-Approval', '2-of-2 multisig — both parties sign to release'],
             ['🔌', 'Xverse Native', 'Sign PSBTs directly in your wallet extension'],
-            ['✅', 'On-chain', 'All transactions verifiable on Mempool.space'],
+            ['✅', 'On-chain', 'All transactions verifiable on the explorer'],
           ].map(([icon, title, desc]) => (
             <div key={title} className="flex gap-3 p-4 rounded-xl border border-gray-200 bg-white">
               <span className="text-2xl">{icon}</span>
@@ -106,10 +106,9 @@ export default function Home() {
           ))}
         </div>
 
-        {/* Testnet notice */}
+        {/* Network notice */}
         <p className="text-center text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg py-2 px-4">
-          ⚠️ Testnet4 only — get free tBTC from the{' '}
-          <a href="https://mempool.space/testnet4/faucet" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Mempool faucet</a>
+          ⚠️ Regtest only — fund your bcrt1 address via the MIDL faucet or Telegram.
         </p>
       </div>
     );
@@ -155,10 +154,9 @@ export default function Home() {
         </div>
       )}
 
-      {/* Testnet notice */}
+      {/* Network notice */}
       <p className="text-xs text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-lg py-2 px-4">
-        ⚠️ Testnet4 only — get free tBTC from the{' '}
-        <a href="https://mempool.space/testnet4/faucet" target="_blank" rel="noopener noreferrer" className="underline font-semibold">Mempool faucet</a>
+        ⚠️ Regtest only — fund your bcrt1 address via the MIDL faucet or Telegram.
       </p>
     </div>
   );
