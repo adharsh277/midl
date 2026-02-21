@@ -1,14 +1,14 @@
-# 🔐 Bitcoin Smart Escrow (Production-Ready)
+# 🔐 Bitcoin Smart Escrow
 
 A **production-ready Bitcoin testnet dApp** for creating programmable escrow contracts with timelock and dual-approval conditions. Built with Next.js 14, TypeScript, Xverse wallet integration, and Bitcoin scripting.
 
-## ✨ Features
+## Features
 
 ### Wallet Management
 - **Xverse Wallet Integration** — Connect Xverse wallet seamlessly via sats-connect
 - **Real-time Balance Lookup** — Fetch confirmed/unconfirmed balance from mempool.space API
 - **Secure Key Handling** — Private keys never leave the wallet
-- **Session Management** — Connect/disconnect with persistent state
+- **Session Management** — Connect/disconnect with persistent  of the state
 
 ### Bitcoin Escrow Contracts
 - **⏳ Time-based Escrow** — Use OP_CHECKLOCKTIMEVERIFY, auto-unlock at block height
@@ -20,7 +20,7 @@ A **production-ready Bitcoin testnet dApp** for creating programmable escrow con
 - **PSBT Signing** — Partially Signed Bitcoin Transactions via Xverse
 - **Transaction Broadcasting** — Direct to Bitcoin testnet
 - **Status Tracking** — Real-time confirmation monitoring
-- **Comprehensive Error Handling** — Proper validation and error states
+- **Comprehensive Error Handling** — Proper validation and proper error states
 
 ### User Interface
 - **Modern Design** — Clean Tailwind CSS UI with dark mode support
