@@ -11,7 +11,6 @@ import {
   sendBtcTransaction,
   signTransaction,
   signMessage as scSignMessage,
-  BitcoinNetworkType,
   AddressPurpose,
   type GetAddressResponse,
   type SignTransactionResponse,
@@ -19,9 +18,10 @@ import {
 } from 'sats-connect';
 import { WalletInfo, XverseSignature } from '../../types';
 import { useWalletStore } from '../store/wallet';
+import { BITCOIN_NETWORK } from '../bitcoin/network';
 
-// Xverse Testnet4 — must match the network selected in Xverse settings
-const NETWORK = BitcoinNetworkType.Testnet4;
+// Network is configured via NEXT_PUBLIC_BITCOIN_NETWORK environment variable
+const NETWORK = BITCOIN_NETWORK;
 
 /** Detect whether the Xverse browser extension is present */
 function isXverseAvailable(): boolean {
