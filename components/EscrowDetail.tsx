@@ -153,7 +153,7 @@ export function EscrowDetail({ escrow }: EscrowDetailProps) {
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:underline text-xs mt-1 inline-block"
                   >
-                    View on mempool →
+                    View on explorer →
                   </a>
                 </div>
               )}
