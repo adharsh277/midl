@@ -5,8 +5,9 @@
 
 import * as btc from 'bitcoinjs-lib';
 import { TransactionInput, TransactionOutput } from '../../types';
+import { BITCOINJS_NETWORK } from './network';
 
-const TESTNET = btc.networks.testnet;
+const NETWORK = BITCOINJS_NETWORK;
 
 /**
  * Build an unsigned transaction
@@ -28,7 +29,7 @@ export function buildTransaction(
 
   // Add outputs
   for (const output of outputs) {
-    const script = btc.address.toOutputScript(output.address, TESTNET);
+    const script = btc.address.toOutputScript(output.address, NETWORK);
     tx.addOutput(script, output.amount);
   }
 
@@ -43,7 +44,7 @@ export function buildPSBT(
   outputs: TransactionOutput[],
   locktime: number = 0,
 ): btc.Psbt {
-  const psbt = new btc.Psbt({ network: TESTNET });
+  const psbt = new btc.Psbt({ network: NETWORK });
 
   // Add inputs with previous output info
   for (const input of inputs) {
@@ -53,7 +54,7 @@ export function buildPSBT(
       sequence: locktime > 0 ? 0xfffffffe : 0xffffffff,
       // Amount is required for taproot/segwit signing
       witnessUtxo: {
-        script: btc.address.toOutputScript(input.txid, TESTNET),
+        script: btc.address.toOutputScript(input.txid, NETWORK),
         value: input.amount,
       },
     });
@@ -155,11 +156,11 @@ export function buildTimelockRedeemTx(
   tx.addInput(Buffer.from(fundingTxid, 'hex').reverse(), fundingVout, 0xfffffffe);
 
   // Add output to recipient
-  const outputScript = btc.address.toOutputScript(recipientAddress, TESTNET);
+  const outputScript = btc.address.toOutputScript(recipientAddress, NETWORK);
   tx.addOutput(outputScript, fundingAmount - fee);
 
   // Build PSBT for signing
-  const psbt = new btc.Psbt({ network: TESTNET });
+  const psbt = new btc.Psbt({ network: NETWORK });
   psbt.addInput({
     hash: fundingTxid,
     index: fundingVout,
@@ -199,11 +200,11 @@ export function buildMultisigRedeemTx(
   tx.addInput(Buffer.from(fundingTxid, 'hex').reverse(), fundingVout, 0xffffffff);
 
   // Add output to recipient
-  const outputScript = btc.address.toOutputScript(recipientAddress, TESTNET);
+  const outputScript = btc.address.toOutputScript(recipientAddress, NETWORK);
   tx.addOutput(outputScript, fundingAmount - fee);
 
   // Build PSBT for signing
-  const psbt = new btc.Psbt({ network: TESTNET });
+  const psbt = new btc.Psbt({ network: NETWORK });
   const redeemScript = Buffer.from(scriptHex, 'hex');
 
   psbt.addInput({
