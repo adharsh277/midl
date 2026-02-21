@@ -2,11 +2,12 @@
  * API Route: Broadcast Escrow Unlock Transaction
  * POST /api/escrow/broadcast
  *
- * Broadcast signed escrow transaction to mempool.space
+ * Broadcast signed escrow transaction to the configured mempool API
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { mempoolClient } from '@/lib/bitcoin/mempool';
+import { getMempoolLink } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Broadcast to Bitcoin testnet
+    // Broadcast to the configured network
     const txid = await mempoolClient.broadcastTransaction(txHex);
 
     if (!txid) {
@@ -51,7 +52,7 @@ export async function POST(request: NextRequest) {
       success: true,
       txid,
       escrowId,
-      mempoolLink: `https://mempool.space/testnet4/tx/${txid}`,
+      mempoolLink: getMempoolLink(txid),
     });
   } catch (error: any) {
     console.error('Error broadcasting transaction:', error);
