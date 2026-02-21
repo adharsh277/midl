@@ -2,6 +2,9 @@
  * Utility Functions
  */
 
+import { getMempoolBaseUrl, getNetworkEnv } from '@/lib/bitcoin/network';
+import { isValidAddress } from '@/lib/bitcoin/address';
+
 /**
  * Convert satoshis to BTC
  */
@@ -91,7 +94,7 @@ export function getStatusDisplay(status: string): {
  * Get mempool link for transaction
  */
 export function getMempoolLink(txid: string): string {
-  const base = process.env.NEXT_PUBLIC_MEMPOOL_API?.replace('/api', '') ?? 'https://mempool.space/testnet4';
+  const base = getMempoolBaseUrl();
   return `${base}/tx/${txid}`;
 }
 
@@ -99,7 +102,7 @@ export function getMempoolLink(txid: string): string {
  * Get mempool link for address
  */
 export function getMempoolAddressLink(address: string): string {
-  const base = process.env.NEXT_PUBLIC_MEMPOOL_API?.replace('/api', '') ?? 'https://mempool.space/testnet4';
+  const base = getMempoolBaseUrl();
   return `${base}/address/${address}`;
 }
 
@@ -124,8 +127,14 @@ export function getTimeRemaining(currentBlock: number, unlockBlock: number): str
  * Validate Bitcoin address format
  */
 export function isValidBitcoinAddress(address: string): boolean {
-  // Testnet P2PKH (m, n), P2SH (2), P2WPKH/P2WSH (tb1)
-  return /^[mn2]|^tb1/.test(address);
+  const networkEnv = getNetworkEnv();
+  const normalized = address.toLowerCase();
+
+  if (networkEnv === 'mainnet') {
+    return /^(bc1|[13])/.test(normalized) && isValidAddress(address);
+  }
+
+  return /^(bcrt1|tb1|[mn2])/.test(normalized) && isValidAddress(address);
 }
 
 /**
@@ -142,12 +151,12 @@ export function createMockEscrow() {
   return {
     id: generateEscrowId(),
     fundingTxid: '0000000000000000000000000000000000000000000000000000000000000000',
-    receiverAddress: 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4',
+    receiverAddress: 'bcrt1qxy2kgdygjrsqtzq2n0yrf2493p83kkfjhx0wlh',
     amount: 1_000_000,
     unlockType: 'timelock' as const,
     status: 'active' as const,
     createdAt: Date.now(),
-    locker: 'tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kf3wmux',
+    locker: 'bcrt1qej5hdyh3l4dmjpy2gtvjpesv5ynvnhq3tcew30',
     unlockTime: 850000,
   };
 }
