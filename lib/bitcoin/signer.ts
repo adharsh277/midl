@@ -7,13 +7,13 @@ import axios from 'axios';
 import {
   signTransaction,
   sendBtcTransaction,
-  BitcoinNetworkType,
   type SignTransactionResponse,
   type SendBtcTransactionResponse,
 } from 'sats-connect';
+import { BITCOIN_NETWORK, getMempoolApiBase } from './network';
 
-const MEMPOOL_API = process.env.NEXT_PUBLIC_MEMPOOL_API || 'https://mempool.space/testnet4/api';
-const NETWORK = BitcoinNetworkType.Testnet4;
+const MEMPOOL_API = getMempoolApiBase();
+const NETWORK = BITCOIN_NETWORK;
 
 export interface InputToSign {
   address: string;
@@ -86,7 +86,7 @@ export async function sendBitcoinWithXverse(
 // ─── Broadcast raw hex ───────────────────────────────────────────────────────
 
 /**
- * Broadcast a fully-signed transaction hex to Bitcoin testnet via mempool.space.
+ * Broadcast a fully-signed transaction hex to the configured network.
  */
 export async function broadcastTransaction(txHex: string): Promise<string> {
   const response = await axios.post<string>(`${MEMPOOL_API}/tx`, txHex, {
