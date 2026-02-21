@@ -2,13 +2,15 @@
  * API Route: Get Wallet Balance
  * GET /api/wallet/balance?address=<address>
  *
- * Fetches Bitcoin testnet balance from mempool.space
+ * Fetches Bitcoin balance from the configured mempool API
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import axios from 'axios';
+import { getMempoolApiBase } from '@/lib/bitcoin/network';
+import { isValidAddress } from '@/lib/bitcoin/address';
 
-const MEMPOOL_API = process.env.NEXT_PUBLIC_MEMPOOL_API || 'https://mempool.space/testnet4/api';
+const MEMPOOL_API = getMempoolApiBase();
 
 interface MempoolAddressInfo {
   address: string;
@@ -39,15 +41,15 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Validate address format (basic check)
-    if (!/^(tb1|[mn2])[a-z0-9]{20,}$/i.test(address)) {
+    // Validate address format
+    if (!isValidAddress(address)) {
       return NextResponse.json(
-        { error: 'Invalid Bitcoin testnet address' },
+        { error: 'Invalid Bitcoin address' },
         { status: 400 },
       );
     }
 
-    // Fetch address data from mempool.space
+    // Fetch address data from the configured mempool API
     const response = await axios.get<MempoolAddressInfo>(
       `${MEMPOOL_API}/address/${address}`,
       { timeout: 5000 },
