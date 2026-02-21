@@ -59,7 +59,7 @@ export function FundEscrowForm({
             rel="noopener noreferrer"
             className="inline-block text-blue-600 hover:underline text-sm"
           >
-            View on mempool.space →
+            View on explorer →
           </a>
           <p className="text-xs text-green-700">
             Waiting for confirmation... The escrow will be ready to unlock once confirmed.
