@@ -3,11 +3,12 @@
 import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useXverseWallet } from '@/lib/hooks/useXverseWallet';
+import { useMidlRegister } from '@/lib/hooks/useMidlRegister';
 import { CreateEscrowForm } from '@/components/CreateEscrowForm';
 import { FundEscrowForm } from '@/components/FundEscrowForm';
 import { PollingDetector } from '@/components/PollingDetector';
 import { createEscrowAddress } from '@/lib/bitcoin/address';
-import { formatSats, getMempoolAddressLink, getMempoolLink } from '@/lib/utils';
+import { formatSats, getMempoolAddressLink, getMempoolLink, getMidlTxLink } from '@/lib/utils';
 import { EscrowConfig } from '@/types';
 
 type Step = 'create' | 'fund' | 'confirm';
@@ -20,9 +21,11 @@ const STEPS: { id: Step; label: string }[] = [
 
 export default function CreatePage() {
   const { wallet, connect, loading: walletLoading } = useXverseWallet();
+  const { registerEscrow, loading: midlLoading, error: midlError, clearError } = useMidlRegister();
   const [step, setStep] = useState<Step>('create');
   const [escrow, setEscrow] = useState<EscrowConfig | null>(null);
   const [fundingTxid, setFundingTxid] = useState<string | null>(null);
+  const [midlTxHash, setMidlTxHash] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const escrowAddress = useMemo(() => {
@@ -50,6 +53,26 @@ export default function CreatePage() {
   const handleFunded = (txid: string) => {
     setFundingTxid(txid);
     setStep('confirm');
+  };
+
+  const handleRegisterMidl = async () => {
+    if (!escrow) return;
+
+    try {
+      clearError();
+      const result = await registerEscrow({
+        escrowId: escrow.id,
+        amountSats: escrow.amount,
+        btcReceiver: escrow.receiverAddress,
+      });
+
+      if (result) {
+        setMidlTxHash(result.hash);
+      }
+    } catch (error) {
+      // Error is already set in the hook state
+      console.error('Midl registration error:', error);
+    }
   };
 
   /* ── Not connected ── */
@@ -189,6 +212,38 @@ export default function CreatePage() {
                 View transaction on explorer →
               </a>
             )}
+          </div>
+
+          <div className="rounded-xl border border-orange-200 bg-orange-50 p-5 space-y-3">
+            <h3 className="font-bold text-orange-900">Register Escrow on Midl</h3>
+            <p className="text-orange-800 text-sm">
+              This sends a lightweight registration transaction to Midl so judges can verify on-chain execution.
+            </p>
+            {midlTxHash && (
+              <div className="text-sm text-orange-800 break-all space-y-1">
+                <p>
+                  Midl Tx Hash: <span className="font-mono">{midlTxHash}</span>
+                </p>
+                {getMidlTxLink(midlTxHash) && (
+                  <a
+                    href={getMidlTxLink(midlTxHash) as string}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-blue-600 hover:underline"
+                  >
+                    View on Midl explorer →
+                  </a>
+                )}
+              </div>
+            )}
+            {midlError && <p className="text-sm text-red-600">{midlError}</p>}
+            <button
+              onClick={handleRegisterMidl}
+              disabled={midlLoading}
+              className="w-full rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-semibold py-3 transition-colors disabled:opacity-60"
+            >
+              {midlLoading ? 'Registering...' : 'Register Escrow on Midl'}
+            </button>
           </div>
 
           <PollingDetector
