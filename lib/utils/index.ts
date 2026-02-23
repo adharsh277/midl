@@ -107,6 +107,15 @@ export function getMempoolAddressLink(address: string): string {
 }
 
 /**
+ * Get Midl explorer link for transaction
+ */
+export function getMidlTxLink(txHash: string): string | null {
+  const base = process.env.NEXT_PUBLIC_MIDL_EXPLORER;
+  if (!base) return null;
+  return `${base}/tx/${txHash}`;
+}
+
+/**
  * Convert timestamp to readable date
  */
 export function formatDate(timestamp: number): string {
