@@ -25,6 +25,7 @@
     "sats-connect": "^4.2.1",
     "tiny-secp256k1": "^2.2.3",
     "typescript": "^5.3.3",
+    "viem": "^2.19.0",
     "zustand": "^4.4.1"
   },
   "devDependencies": {
