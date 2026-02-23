@@ -117,21 +117,6 @@ export default function Home() {
   /* ── Connected ──────────────────────────────────────────── */
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 text-sm mt-1">
-            {escrows.length === 0 ? 'No escrows yet' : `${escrows.length} escrow${escrows.length !== 1 ? 's' : ''}`}
-          </p>
-        </div>
-        <Link
-          href="/create"
-          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-bitcoin-500 hover:bg-bitcoin-600 text-white font-semibold shadow transition-colors"
-        >
-          + Create Escrow
-        </Link>
-      </div>
 
       {/* Escrow list */}
       {escrows.length === 0 ? (
